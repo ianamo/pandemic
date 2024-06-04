@@ -7,6 +7,7 @@ Created on Sun Jun  2 14:27:12 2024
 """
 
 import random
+import pylab as plt
 
 class Pandemic(object):
     def __init__(self, population=[], pathogens={}, infected={},encounters=5):
@@ -19,6 +20,10 @@ class Pandemic(object):
         self.hospitalized = 0
         self.dead = 0
         self.encounters = encounters
+        self.pop_log = []
+        self.infected_log = []
+        self.hospitalized_log = []
+        self.dead_log = []
         
         for k in infected:
             for i in range(infected[k]):
@@ -37,20 +42,52 @@ class Pandemic(object):
         self.hospitalized = len([p for p in self.population if p.hospitalized])
         for p in self.population:
             if p.dead:
-                self.dead+=1
-                self.population.remove(p)
-                self.infected_pop.remove(p)
-                self.infected-=1
-                self.hospitalized -= 1
+                try:
+                    self.infected_pop.remove(p)
+                except ValueError:
+                    pass
+        self.dead = len([p for p in self.population if p.dead])
     
     def show(self):
         print(f"""
               t: {self.t}
-              Population: {self.pop_size}
+              Population: {self.pop_size - self.dead}
               Infected: {self.infected}
               Hospitalized: {self.hospitalized}
               Dead: {self.dead}
               """)
+    
+    def log(self):
+        self.pop_log.append(self.pop_size-self.dead)
+        self.infected_log.append(self.infected)
+        self.hospitalized_log.append(self.hospitalized)
+        self.dead_log.append(self.dead)
+    
+    def plot(self,title=None):
+        plt.figure()
+        if not title:
+            names = []
+            for k in self.pathogens:
+                names.append(str(self.pathogens[k]))
+            str_names = ",".join(names)
+            plt.title(f"Pandemic Curve of {str_names}")
+        else:
+            plt.title(title)
+        plt.xlabel("t=")
+        plt.ylabel("Amounts")
+        x = list(range(1,self.t+1))
+        plt.plot(x, self.pop_log, label="Population")
+        plt.plot(x, self.infected_log, label="Infected")
+        plt.plot(x, self.hospitalized_log, label="Hospitalized")
+        plt.plot(x, self.dead_log, label="Deaths")
+        plt.legend()
+        plt.show()
+    
+    def model(self, t):
+        for i in range(t):
+            self.turn()
+            self.log()
+        self.plot()
                 
 class Person(object):
     def __init__(self, clear_rate):
@@ -78,16 +115,21 @@ class Person(object):
         for v in self.pathogens:
             if random.random() < self.clear_rate:
                 self.pathogens.remove(v)
-            elif self.infected_days > v.serious:
+                if len(self.pathogens)<1:
+                    self.infected = False
+                    self.hospitalized = False
+            elif self.infected_days > v.serious and self.infected_days < v.fatal:
                 self.hospitalized = True
             elif self.infected_days > v.fatal:
                 self.dead = True
-                return 'dead'
+                self.infected = False
+                self.hospitalized = False
         
-        for p in encounter_group:
-            for v in self.pathogens:
-                if random.random() < v.infect_rate and not p.is_immune(v):
-                    p.infect(v)
+        if not self.dead:
+            for p in encounter_group:
+                for v in self.pathogens:
+                    if random.random() < v.infect_rate and not p.is_immune(v):
+                        p.infect(v)
 
 class Pathogen(object):
     def __init__(self, name, infect_rate, serious, fatal):
@@ -107,9 +149,6 @@ def prepare_population(size, clear_rate):
     return pop
 
 my_pop = prepare_population(1000, 0.08)
-covid = Pathogen("COVID-19",0.3,15,30)
-pan = Pandemic(population=my_pop, pathogens={'COVID-19':covid},infected={'COVID-19':1})
-
-for i in range(90):
-    pan.turn()
-    pan.show()
+covid = Pathogen("COVID-19",0.1,15,30)
+pan = Pandemic(population=my_pop, pathogens={'COVID-19':covid},infected={'COVID-19':1},encounters=15)
+pan.model(90)

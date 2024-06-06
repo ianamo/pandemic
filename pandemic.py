@@ -32,21 +32,17 @@ class Pandemic(object):
     
     def turn(self):
         self.t += 1
+        self.infected, self.hospitalized = 0,0
         for p in self.infected_pop:
             encounter_group = []
             for i in range(self.encounters):
                 encounter_group.append(random.choice(self.population))
-            p.update(encounter_group)
+            data = p.update(encounter_group)
+            self.infected += int(data[0])
+            self.hospitalized += int(data[1])
+            self.dead += int(data[2])
         self.infected_pop = [p for p in self.population if p.infected]
-        self.infected = len(self.infected_pop)
-        self.hospitalized = len([p for p in self.population if p.hospitalized])
-        for p in self.population:
-            if p.dead:
-                try:
-                    self.infected_pop.remove(p)
-                except ValueError:
-                    pass
-        self.dead = len([p for p in self.population if p.dead])
+        return (self.infected, self.hospitalized, self.dead)
     
     def show(self):
         print(f"""
@@ -57,11 +53,11 @@ class Pandemic(object):
               Dead: {self.dead}
               """)
     
-    def log(self):
-        self.pop_log.append(self.pop_size-self.dead)
-        self.infected_log.append(self.infected)
-        self.hospitalized_log.append(self.hospitalized)
-        self.dead_log.append(self.dead)
+    def log(self, infected, hospitalized, dead):
+        self.pop_log.append(self.pop_size-dead)
+        self.infected_log.append(infected)
+        self.hospitalized_log.append(hospitalized)
+        self.dead_log.append(dead)
     
     def plot(self,title=None):
         plt.figure()
@@ -85,9 +81,10 @@ class Pandemic(object):
     
     def model(self, t):
         for i in range(t):
-            self.turn()
-            self.log()
+            inf, hos, dead = self.turn()
+            self.log(inf, hos, dead)
         self.plot()
+        return (self.infected,self.hospitalized,self.dead)
                 
 class Person(object):
     def __init__(self, clear_rate):
@@ -130,6 +127,8 @@ class Person(object):
                 for v in self.pathogens:
                     if random.random() < v.infect_rate and not p.is_immune(v):
                         p.infect(v)
+        
+        return (self.infected, self.hospitalized, self.dead)
 
 class Pathogen(object):
     def __init__(self, name, infect_rate, serious, fatal):
@@ -150,5 +149,5 @@ def prepare_population(size, clear_rate):
 
 my_pop = prepare_population(1000, 0.08)
 covid = Pathogen("COVID-19",0.1,15,30)
-pan = Pandemic(population=my_pop, pathogens={'COVID-19':covid},infected={'COVID-19':1},encounters=15)
-pan.model(90)
+pan = Pandemic(population=my_pop, pathogens={'COVID-19':covid},infected={'COVID-19':1},encounters=100)
+print(pan.model(90))
